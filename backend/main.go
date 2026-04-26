@@ -126,21 +126,25 @@ func main() {
 		log.Fatalf("Frontend embed failed: %v", err)
 	}
 
+	fileServer := http.FileServer(http.FS(distFS))
 	r.NoRoute(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		// Try to serve static file
-		if !strings.HasPrefix(path, "/api/") {
-			f, err := distFS.Open(strings.TrimPrefix(path, "/"))
-			if err == nil {
-				f.Close()
-				c.FileFromFS(strings.TrimPrefix(path, "/"), http.FS(distFS))
-				return
-			}
-			// SPA fallback
-			c.FileFromFS("index.html", http.FS(distFS))
+		urlPath := strings.TrimPrefix(c.Request.URL.Path, "/")
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
 			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
+		// 根路径或静态文件不存在 → 输出 index.html（SPA 模式）
+		if urlPath == "" {
+			data, _ := fs.ReadFile(distFS, "index.html")
+			c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+			return
+		}
+		if _, err := fs.Stat(distFS, urlPath); err != nil {
+			data, _ := fs.ReadFile(distFS, "index.html")
+			c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+			return
+		}
+		fileServer.ServeHTTP(c.Writer, c.Request)
 	})
 
 	addr := fmt.Sprintf("%s:%d", config.Cfg.Server.Host, config.Cfg.Server.Port)
