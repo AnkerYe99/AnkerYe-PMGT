@@ -340,3 +340,41 @@ func GetDeletedProjects(c *gin.Context) {
 	}
 	util.OK(c, projects)
 }
+
+// UpdateProjectStatus POST /api/v1/projects/:id/status
+// 三种用户均可将项目置为 active(进行中) 或 completed(已完成)
+// 已删除的项目不可操作
+func UpdateProjectStatus(c *gin.Context) {
+	user := util.CurrentUser(c)
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+
+	if !canViewProject(user.ID, user.Role, id) {
+		util.Fail(c, http.StatusForbidden, "无权访问此项目")
+		return
+	}
+
+	var req struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		util.Fail(c, 400, "参数错误")
+		return
+	}
+
+	// 只允许设置这两个状态（其他状态如 draft/archived/deleted 需要更高权限的接口）
+	if req.Status != "active" && req.Status != "completed" {
+		util.Fail(c, 400, "只能设置为：active(进行中) 或 completed(已完成)")
+		return
+	}
+
+	// 已软删除的项目不可操作
+	var deletedAt sql.NullString
+	db.DB.QueryRow("SELECT deleted_at FROM projects WHERE id=?", id).Scan(&deletedAt)
+	if deletedAt.Valid {
+		util.Fail(c, 400, "已删除的项目无法修改状态")
+		return
+	}
+
+	db.DB.Exec("UPDATE projects SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", req.Status, id)
+	util.OKMsg(c, "状态已更新")
+}

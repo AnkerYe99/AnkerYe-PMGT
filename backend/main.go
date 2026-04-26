@@ -6,6 +6,7 @@ import (
 	"ankerye-pmgt/handler"
 	"ankerye-pmgt/middleware"
 	"embed"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -19,8 +20,10 @@ import (
 var frontendFS embed.FS
 
 func main() {
-	// Load config
-	if err := config.Load("/opt/ankerye-pmgt/config.yaml"); err != nil {
+	cfgPath := flag.String("config", "/opt/ankerye-pmgt/config.yaml", "config file path")
+	flag.Parse()
+
+	if err := config.Load(*cfgPath); err != nil {
 		log.Printf("Config load warning: %v", err)
 	}
 
@@ -64,6 +67,12 @@ func main() {
 			auth.GET("/projects/:id/members", handler.ListMembers)
 			auth.GET("/projects/:id/docs", handler.ListDocs)
 			auth.GET("/projects/:id/docs/:did", handler.GetDoc)
+			auth.GET("/projects/:id/logs", handler.ListProjectLogs)
+
+			// 三种用户均可写进度日志和修改项目状态
+			auth.POST("/projects/:id/logs", handler.AddProjectLog)
+			auth.DELETE("/projects/:id/logs/:lid", handler.DeleteProjectLog)
+			auth.POST("/projects/:id/status", handler.UpdateProjectStatus)
 
 			auth.GET("/search", handler.Search)
 		}

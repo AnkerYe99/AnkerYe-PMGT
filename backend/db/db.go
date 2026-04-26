@@ -117,6 +117,15 @@ CREATE TABLE IF NOT EXISTS system_settings (
 CREATE VIRTUAL TABLE IF NOT EXISTS fts_docs USING fts5(
     title, content, project_id UNINDEXED, doc_id UNINDEXED
 );
+
+CREATE TABLE IF NOT EXISTS project_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id),
+    content TEXT NOT NULL,
+    created_by INTEGER NOT NULL REFERENCES users(id),
+    client_ip TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `
 	_, err := DB.Exec(schema)
 	return err
